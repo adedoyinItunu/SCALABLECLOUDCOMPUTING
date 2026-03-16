@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Quiz Generator</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, sans-serif;
+      background: #f4f6fb;
+      color: #1a1a2e;
+      min-height: 100vh;
+      padding: 2rem 1rem;
+    }
+
+    .container { max-width: 780px; margin: 0 auto; }
+
+    h1 { font-size: 2rem; font-weight: 700; margin-bottom: 0.25rem; color: #1a1a2e; }
+
+    .subtitle { color: #666; margin-bottom: 2rem; font-size: 0.95rem; }
+
+    .card {
+      background: #fff;
+      border-radius: 14px;
+      padding: 2rem;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+    }
+
+    .mode-toggle { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
+
+    .mode-btn {
+      flex: 1;
+      padding: 0.65rem 1rem;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      background: #fff;
+      cursor: pointer;
+      font-size: 0.95rem;
+      font-weight: 500;
+      color: #555;
+      transition: all 0.2s;
+    }
+
+    .mode-btn.active { border-color: #6c63ff; background: #f0eeff; color: #6c63ff; }
+
+    label { display: block; font-weight: 600; font-size: 0.9rem; margin-bottom: 0.4rem; color: #333; }
+
+    input[type="text"], textarea, select {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      border: 1.5px solid #ddd;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-family: inherit;
+      background: #fafafa;
+      margin-bottom: 1.2rem;
+      transition: border-color 0.2s;
+      color: #1a1a2e;
+    }
+
+    input[type="text"]:focus, textarea:focus, select:focus {
+      outline: none; border-color: #6c63ff; background: #fff;
+    }
+
+    textarea { resize: vertical; min-height: 120px; }
+
+    .form-row { display: flex; gap: 1rem; }
+    .form-row > div { flex: 1; }
+
+    .btn-primary {
+      width: 100%;
+      padding: 0.85rem;
+      background: #6c63ff;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+    }
+
+    .btn-primary:hover  { background: #574fd6; }
+    .btn-primary:active { transform: scale(0.98); }
+    .btn-primary:disabled { background: #aaa; cursor: not-allowed; }
+
+    .services-row { display: flex; gap: 1rem; flex-wrap: wrap; }
+
+    .service-card {
+      flex: 1;
+      min-width: 200px;
+      background: #fff;
+      border: 1.5px solid #e8e8e8;
+      border-radius: 10px;
+      padding: 1rem 1.2rem;
+    }
+
+    .service-card h3 {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.6rem;
+    }
+
+    .service-card select, .service-card input { margin-bottom: 0.6rem; }
+
+    .btn-secondary {
+      width: 100%;
+      padding: 0.6rem;
+      background: #f0eeff;
+      color: #6c63ff;
+      border: 1.5px solid #c8c3ff;
+      border-radius: 7px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .btn-secondary:hover { background: #e4e0ff; }
+    .btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .status-banner {
+      display: none;
+      padding: 1rem 1.5rem;
+      border-radius: 10px;
+      margin-bottom: 1.5rem;
+      font-weight: 500;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .status-banner.show    { display: flex; }
+    .status-banner.pending { background: #fff8e1; color: #7a5c00; border: 1.5px solid #ffe082; }
+    .status-banner.done    { background: #e8f5e9; color: #2e7d32; border: 1.5px solid #a5d6a7; }
+    .status-banner.error   { background: #fdecea; color: #b71c1c; border: 1.5px solid #ef9a9a; }
+
+    .spinner {
+      width: 18px; height: 18px;
+      border: 2.5px solid #ffe082;
+      border-top-color: #7a5c00;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #results-section { display: none; }
+    #results-section.show { display: block; }
+
+    .results-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.2rem;
+    }
+
+    .results-header h2 { font-size: 1.3rem; }
+
+    .badge {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 700;
+    }
+
+    .badge-easy   { background: #e8f5e9; color: #2e7d32; }
+    .badge-medium { background: #fff8e1; color: #7a5c00; }
+    .badge-hard   { background: #fdecea; color: #b71c1c; }
+
+    .question-card {
+      background: #fff;
+      border: 1.5px solid #e8e8e8;
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1rem;
+      transition: box-shadow 0.2s;
+    }
+
+    .question-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+
+    .question-num {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: #6c63ff;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 0.4rem;
+    }
+
+    .question-text { font-size: 1.05rem; font-weight: 600; margin-bottom: 1rem; line-height: 1.5; }
+
+    .options { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1rem; }
+
+    .option-label {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.65rem 1rem;
+      border: 1.5px solid #e0e0e0;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-size: 0.95rem;
+    }
+
+    .option-label:hover { border-color: #6c63ff; background: #f8f7ff; }
+
+    .option-label input[type="radio"] {
+      width: auto; margin: 0; padding: 0;
+      accent-color: #6c63ff; flex-shrink: 0;
+    }
+
+    .option-label.correct { border-color: #4caf50; background: #e8f5e9; }
+    .option-label.wrong   { border-color: #f44336; background: #fdecea; }
+
+    .btn-reveal {
+      padding: 0.5rem 1rem;
+      background: #fff;
+      border: 1.5px solid #6c63ff;
+      color: #6c63ff;
+      border-radius: 7px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .btn-reveal:hover { background: #f0eeff; }
+
+    .explanation {
+      display: none;
+      margin-top: 0.75rem;
+      padding: 0.75rem 1rem;
+      background: #f0eeff;
+      border-left: 3px solid #6c63ff;
+      border-radius: 0 8px 8px 0;
+      font-size: 0.9rem;
+      color: #333;
+      line-height: 1.6;
+    }
+
+    .explanation.show { display: block; }
+
+    .trivia-card {
+      background: #fff3e0;
+      border: 1.5px solid #ffe0b2;
+      border-radius: 12px;
+      padding: 1.2rem 1.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .trivia-card .question-text { color: #e65100; }
+
+    .difficulty-meter {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+      font-size: 0.82rem;
+      color: #888;
+    }
+
+    .diff-bar { flex: 1; height: 5px; background: #eee; border-radius: 3px; overflow: hidden; }
+
+    .diff-fill { height: 100%; border-radius: 3px; transition: width 0.6s ease; }
+
+    @media (max-width: 540px) {
+      .form-row { flex-direction: column; gap: 0; }
+      .services-row { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <h1>Quiz Generator</h1>
+  <p class="subtitle">Generate multiple-choice questions from any topic or text using AI</p>
+
+  <!-- INPUT CARD -->
+  <div class="card">
+
+    <div class="mode-toggle">
+      <button class="mode-btn active" id="btn-topic" onclick="setMode('topic')">Topic mode</button>
+      <button class="mode-btn"        id="btn-text"  onclick="setMode('text')">Text mode</button>
+    </div>
+
+    <div id="topic-input">
+      <label for="topic">Enter a topic</label>
+      <input type="text" id="topic" placeholder="e.g. The French Revolution, Python decorators, AWS Lambda…" />
+    </div>
+
+    <div id="text-input" style="display:none">
+      <label for="pasted-text">Paste your text</label>
+      <textarea id="pasted-text" placeholder="Paste any paragraph, article excerpt, or study notes here…"></textarea>
+    </div>
+
+    <div class="form-row">
+      <div>
+        <label for="num-questions">Number of questions</label>
+        <select id="num-questions">
+          <option value="3">3 questions</option>
+          <option value="5" selected>5 questions</option>
+          <option value="8">8 questions</option>
+          <option value="10">10 questions</option>
+        </select>
+      </div>
+      <div>
+        <label for="difficulty">Difficulty</label>
+        <select id="difficulty">
+          <option value="easy">Easy</option>
+          <option value="medium" selected>Medium</option>
+          <option value="hard">Hard</option>
+        </select>
+      </div>
+    </div>
+
+    <button class="btn-primary" id="submit-btn" onclick="submitQuiz()">Generate quiz</button>
+  </div>
+
+  <!-- EXTRA SERVICES ROW -->
+  <div class="services-row" id="services-row" style="display:none; margin-bottom:1.5rem;">
+
+    <!-- Classmate Service 1: Translation -->
+    <div class="service-card">
+      <h3>Translate quiz</h3>
+      <label for="lang-select">Language</label>
+      <select id="lang-select">
+        <option value="">Select language</option>
+        <option value="es">Spanish</option>
+        <option value="fr">French</option>
+        <option value="de">German</option>
+        <option value="ga">Irish</option>
+        <option value="zh">Chinese</option>
+      </select>
+      <button class="btn-secondary" id="translate-btn" onclick="translateQuiz()" disabled>Translate</button>
+    </div>
+
+    <!-- Classmate Service 2: Difficulty scoring -->
+    <div class="service-card">
+      <h3>Difficulty score</h3>
+      <p style="font-size:0.85rem; color:#666; margin-bottom:0.6rem;">
+        Get an AI difficulty rating for each question
+      </p>
+      <button class="btn-secondary" id="difficulty-btn" onclick="scoreDifficulty()" disabled>Score difficulty</button>
+    </div>
+
+    <!-- Public API: Open Trivia DB -->
+    <div class="service-card">
+      <h3>Bonus trivia</h3>
+      <p style="font-size:0.85rem; color:#666; margin-bottom:0.6rem;">
+        Mix in questions from Open Trivia DB
+      </p>
+      <button class="btn-secondary" id="trivia-btn" onclick="loadTrivia()" disabled>Add trivia round</button>
+    </div>
+
+  </div>
+
+  <!-- STATUS BANNER -->
+  <div class="status-banner" id="status-banner">
+    <div class="spinner" id="status-spinner"></div>
+    <span id="status-text">Generating your quiz…</span>
+  </div>
+
+  <!-- RESULTS SECTION -->
+  <div id="results-section">
+    <div class="results-header">
+      <h2>Your quiz</h2>
+      <span class="badge" id="difficulty-badge"></span>
+    </div>
+    <div id="questions-container"></div>
+    <div id="trivia-container"></div>
+  </div>
+
+</div>
+
+<script>
+  // ─────────────────────────────────────────────────────────────
+  // CONFIGURATION
+  // Step 1: Replace API_BASE with your real URL after sam deploy
+  // Step 2: Set MOCK_MODE to false
+  // Step 3: Replace classmate API URLs when you receive them
+  // ─────────────────────────────────────────────────────────────
+  const API_BASE       = "https://YOUR-API-ID.execute-api.eu-west-1.amazonaws.com/Prod";
+  const MOCK_MODE      = true;   // set to false once backend is deployed
+
+  // Classmate APIs - fill these in when you receive them
+  const TRANSLATION_API = "https://CLASSMATE-1-API-URL/translate";
+  const DIFFICULTY_API  = "https://CLASSMATE-2-API-URL/score";
+
+  // State
+  let currentMode      = 'topic';
+  let currentQuestions = [];
+  let currentJobId     = null;
+  let pollInterval     = null;
+
+  // ── Mode toggle ──
+  function setMode(mode) {
+    currentMode = mode;
+    document.getElementById('topic-input').style.display = mode === 'topic' ? 'block' : 'none';
+    document.getElementById('text-input').style.display  = mode === 'text'  ? 'block' : 'none';
+    document.getElementById('btn-topic').classList.toggle('active', mode === 'topic');
+    document.getElementById('btn-text').classList.toggle('active',  mode === 'text');
+  }
+
+  // ── Mock data - used while backend is not deployed ──
+  function getMockQuestions(input, num, difficulty) {
+    const templates = [
+      {
+        question: `Which of the following best describes "${input}"?`,
+        options: ["A) A programming paradigm", "B) A cloud computing concept", "C) A network protocol", "D) A database design pattern"],
+        answer: "B",
+        explanation: `"${input}" is a cloud computing concept focused on scalability and distributed systems.`
+      },
+      {
+        question: `What is a key benefit of "${input}"?`,
+        options: ["A) Reduced latency", "B) Automatic scaling", "C) Lower cost", "D) All of the above"],
+        answer: "D",
+        explanation: "All three are genuine benefits in most cloud scenarios."
+      },
+      {
+        question: `Which AWS service is most closely related to "${input}"?`,
+        options: ["A) Amazon S3", "B) AWS Lambda", "C) Amazon RDS", "D) Amazon EC2"],
+        answer: "B",
+        explanation: "AWS Lambda provides serverless compute, directly relevant to scalable applications."
+      },
+      {
+        question: `In the context of "${input}", what does scalability mean?`,
+        options: ["A) Running on multiple servers", "B) Handling increased load without degradation", "C) Reducing code complexity", "D) Encrypting data at rest"],
+        answer: "B",
+        explanation: "Scalability means a system can handle growing amounts of work gracefully."
+      },
+      {
+        question: `Which design pattern is commonly used when implementing "${input}"?`,
+        options: ["A) Singleton", "B) Observer", "C) Event-driven architecture", "D) Factory"],
+        answer: "C",
+        explanation: "Event-driven architecture decouples components and is ideal for scalable cloud systems."
+      }
+    ];
+    return templates.slice(0, Math.min(num, templates.length));
+  }
+
+  // ── Submit quiz ──
+  async function submitQuiz() {
+    const input = currentMode === 'topic'
+      ? document.getElementById('topic').value.trim()
+      : document.getElementById('pasted-text').value.trim();
+
+    if (!input) { alert('Please enter a topic or paste some text first.'); return; }
+
+    const numQuestions = parseInt(document.getElementById('num-questions').value);
+    const difficulty   = document.getElementById('difficulty').value;
+
+    // Reset UI
+    setStatus('pending', 'Generating your quiz…');
+    document.getElementById('submit-btn').disabled = true;
+    document.getElementById('results-section').classList.remove('show');
+    document.getElementById('services-row').style.display = 'none';
+    document.getElementById('questions-container').innerHTML = '';
+    document.getElementById('trivia-container').innerHTML = '';
+    currentQuestions = [];
+
+    if (MOCK_MODE) {
+      // Simulate a 2-second delay so you can see the loading state
+      setTimeout(() => {
+        const questions = getMockQuestions(input, numQuestions, difficulty);
+        renderResults(questions, difficulty);
+      }, 2000);
+      return;
+    }
+
+    // Real API flow
+    try {
+      const res = await fetch(`${API_BASE}/quiz`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: currentMode, input, numQuestions, difficulty })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Request failed');
+
+      currentJobId = data.jobId;
+      startPolling(difficulty);
+
+    } catch (err) {
+      setStatus('error', 'Error: ' + err.message);
+      document.getElementById('submit-btn').disabled = false;
+    }
+  }
+
+  // ── Poll the GET endpoint every 2s until done ──
+  function startPolling(difficulty) {
+    pollInterval = setInterval(async () => {
+      try {
+        const res  = await fetch(`${API_BASE}/quiz/${currentJobId}`);
+        const data = await res.json();
+
+        if (data.status === 'done') {
+          clearInterval(pollInterval);
+          renderResults(data.questions, difficulty);
+        } else if (data.status === 'failed') {
+          clearInterval(pollInterval);
+          setStatus('error', 'Generation failed: ' + (data.errorMsg || 'unknown error'));
+          document.getElementById('submit-btn').disabled = false;
+        }
+        // if still 'pending', do nothing - interval fires again in 2s
+
+      } catch (err) {
+        clearInterval(pollInterval);
+        setStatus('error', 'Polling error: ' + err.message);
+        document.getElementById('submit-btn').disabled = false;
+      }
+    }, 2000);
+  }
+
+  // ── Render all question cards ──
+  function renderResults(questions, difficulty) {
+    currentQuestions = questions;
+
+    setStatus('done', `Quiz ready — ${questions.length} questions generated`);
+    document.getElementById('submit-btn').disabled = false;
+
+    const badge = document.getElementById('difficulty-badge');
+    badge.textContent = difficulty.charAt(0).toUpperCase() + difficulty.slice(1);
+    badge.className   = `badge badge-${difficulty}`;
+
+    const container = document.getElementById('questions-container');
+    container.innerHTML = '';
+    questions.forEach((q, i) => container.appendChild(buildQuestionCard(q, i)));
+
+    document.getElementById('results-section').classList.add('show');
+    document.getElementById('services-row').style.display = 'flex';
+
+    document.getElementById('translate-btn').disabled  = false;
+    document.getElementById('difficulty-btn').disabled = false;
+    document.getElementById('trivia-btn').disabled     = false;
+
+    document.getElementById('results-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // ── Build a single question card DOM element ──
+  function buildQuestionCard(q, index, isTrivia = false) {
+    const card = document.createElement('div');
+    card.className = isTrivia ? 'trivia-card' : 'question-card';
+    card.id = `card-${index}`;
+
+    const optionsHtml = q.options.map((opt, oi) => `
+      <label class="option-label" id="opt-${index}-${oi}">
+        <input type="radio" name="q${index}" value="${opt.charAt(0)}"
+               onchange="checkAnswer(${index}, '${opt.charAt(0)}', '${q.answer}')">
+        ${opt}
+      </label>
+    `).join('');
+
+    card.innerHTML = `
+      <div class="question-num">${isTrivia ? 'Bonus' : 'Question'} ${index + 1}</div>
+      <div class="question-text">${q.question}</div>
+      <div class="options">${optionsHtml}</div>
+      <div style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap;">
+        <button class="btn-reveal" onclick="toggleExplanation(${index})">Show answer</button>
+        <div class="difficulty-meter" id="diff-meter-${index}" style="display:none; flex:1; min-width:120px;">
+          <span id="diff-label-${index}"></span>
+          <div class="diff-bar"><div class="diff-fill" id="diff-fill-${index}"></div></div>
+        </div>
+      </div>
+      <div class="explanation" id="explanation-${index}">
+        <strong>Answer: ${q.answer}</strong> — ${q.explanation}
+      </div>
+    `;
+    return card;
+  }
+
+  // ── Check answer when user picks an option ──
+  function checkAnswer(questionIndex, selected, correct) {
+    document.querySelectorAll(`input[name="q${questionIndex}"]`).forEach(radio => {
+      const label = radio.parentElement;
+      label.classList.remove('correct', 'wrong');
+      if (radio.value === correct) label.classList.add('correct');
+      else if (radio.value === selected) label.classList.add('wrong');
+      radio.disabled = true;
+    });
+  }
+
+  // ── Toggle explanation panel ──
+  function toggleExplanation(index) {
+    const el      = document.getElementById(`explanation-${index}`);
+    const btn     = el.previousElementSibling.querySelector('.btn-reveal');
+    const showing = el.classList.toggle('show');
+    btn.textContent = showing ? 'Hide answer' : 'Show answer';
+  }
+
+  // ── Status banner helper ──
+  function setStatus(type, message) {
+    const banner  = document.getElementById('status-banner');
+    const spinner = document.getElementById('status-spinner');
+    const text    = document.getElementById('status-text');
+    banner.className        = `status-banner show ${type}`;
+    spinner.style.display   = type === 'pending' ? 'block' : 'none';
+    text.textContent        = message;
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // CLASSMATE SERVICE 1 — Translation
+  // Replace TRANSLATION_API at the top with your classmate's URL
+  // ─────────────────────────────────────────────────────────────
+  async function translateQuiz() {
+    const lang = document.getElementById('lang-select').value;
+    if (!lang) { alert('Please select a language first.'); return; }
+
+    document.getElementById('translate-btn').disabled    = true;
+    document.getElementById('translate-btn').textContent = 'Translating…';
+
+    try {
+      // MOCK - remove this block and uncomment the fetch below when you have the real API
+      await new Promise(r => setTimeout(r, 1000));
+      alert(`Translation to ${lang.toUpperCase()} — paste your classmate's API URL into TRANSLATION_API at the top of this file.`);
+
+      /* REAL CALL - uncomment when classmate API is ready:
+      const res = await fetch(TRANSLATION_API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ questions: currentQuestions, targetLanguage: lang })
+      });
+      const data = await res.json();
+      renderResults(data.questions, document.getElementById('difficulty').value);
+      */
+
+    } catch (err) {
+      alert('Translation error: ' + err.message);
+    } finally {
+      document.getElementById('translate-btn').disabled    = false;
+      document.getElementById('translate-btn').textContent = 'Translate';
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // CLASSMATE SERVICE 2 — Difficulty scoring
+  // Replace DIFFICULTY_API at the top with your classmate's URL
+  // ─────────────────────────────────────────────────────────────
+  async function scoreDifficulty() {
+    document.getElementById('difficulty-btn').disabled    = true;
+    document.getElementById('difficulty-btn').textContent = 'Scoring…';
+
+    try {
+      // MOCK difficulty scores - replace with real fetch when classmate API is ready
+      await new Promise(r => setTimeout(r, 800));
+
+      currentQuestions.forEach((q, i) => {
+        const score  = Math.floor(Math.random() * 60) + 20;
+        const label  = score < 40 ? 'Easy' : score < 65 ? 'Medium' : 'Hard';
+        const colour = score < 40 ? '#4caf50' : score < 65 ? '#ff9800' : '#f44336';
+
+        const meter  = document.getElementById(`diff-meter-${i}`);
+        const fill   = document.getElementById(`diff-fill-${i}`);
+        const lbl    = document.getElementById(`diff-label-${i}`);
+
+        meter.style.display   = 'flex';
+        fill.style.width      = score + '%';
+        fill.style.background = colour;
+        lbl.textContent       = label;
+      });
+
+      /* REAL CALL - uncomment when classmate API is ready:
+      for (const [i, q] of currentQuestions.entries()) {
+        const res  = await fetch(DIFFICULTY_API, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question: q.question, options: q.options })
+        });
+        const data = await res.json();
+        // use data.score and data.label to update the meter
+      }
+      */
+
+    } catch (err) {
+      alert('Difficulty scoring error: ' + err.message);
+    } finally {
+      document.getElementById('difficulty-btn').disabled    = false;
+      document.getElementById('difficulty-btn').textContent = 'Score difficulty';
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // PUBLIC API — Open Trivia DB (opentdb.com)
+  // This works RIGHT NOW - no API key or setup needed
+  // ─────────────────────────────────────────────────────────────
+  async function loadTrivia() {
+    document.getElementById('trivia-btn').disabled    = true;
+    document.getElementById('trivia-btn').textContent = 'Loading…';
+
+    try {
+      const res  = await fetch('https://opentdb.com/api.php?amount=3&type=multiple');
+      const data = await res.json();
+
+      const container = document.getElementById('trivia-container');
+      container.innerHTML = '<h3 style="margin:1.5rem 0 1rem; font-size:1rem; color:#888;">Bonus trivia round (Open Trivia DB)</h3>';
+
+      data.results.forEach((item, i) => {
+        const allOptions    = [...item.incorrect_answers, item.correct_answer].sort(() => Math.random() - 0.5);
+        const letters       = ['A', 'B', 'C', 'D'];
+        const correctLetter = letters[allOptions.indexOf(item.correct_answer)];
+
+        const q = {
+          question:    decodeHtmlEntities(item.question),
+          options:     allOptions.map((o, idx) => `${letters[idx]}) ${decodeHtmlEntities(o)}`),
+          answer:      correctLetter,
+          explanation: `The correct answer is ${correctLetter}: ${decodeHtmlEntities(item.correct_answer)}.`
+        };
+
+        container.appendChild(buildQuestionCard(q, currentQuestions.length + i, true));
+      });
+
+    } catch (err) {
+      alert('Could not load trivia: ' + err.message);
+    } finally {
+      document.getElementById('trivia-btn').disabled    = false;
+      document.getElementById('trivia-btn').textContent = 'Add trivia round';
+    }
+  }
+
+  // Decode HTML entities returned by the Trivia API (e.g. &amp; becomes &)
+  function decodeHtmlEntities(str) {
+    const el   = document.createElement('textarea');
+    el.innerHTML = str;
+    return el.value;
+  }
+</script>
+</body>
+</html>

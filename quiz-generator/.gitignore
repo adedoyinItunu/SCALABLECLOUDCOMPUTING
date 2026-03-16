@@ -1,0 +1,22 @@
+# AWS SAM build output
+.aws-sam/
+
+# SAM config file contains your stack name and region - safe to commit
+# but excluded here to avoid accidental key exposure if you add secrets to it
+samconfig.toml
+
+# Environment files - never commit these
+.env
+.env.local
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Mac
+.DS_Store
+
+# IDE
+.vscode/
+.idea/

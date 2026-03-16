@@ -1,0 +1,105 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Quiz Generator - Scalable Cloud Programming CA
+
+Globals:
+  Function:
+    Runtime: python3.11
+    Timeout: 30
+    Environment:
+      Variables:
+        TABLE_NAME: !Ref QuizTable
+        QUEUE_URL: !Ref QuizQueue
+        OPENAI_API_KEY: "REPLACE_BEFORE_DEPLOY"
+
+Resources:
+
+  # --- The SQS Queue ---
+  # Buffer between your API and the OpenAI call.
+  # When a user submits a quiz request, it goes here first.
+  # The processor Lambda reads from it automatically.
+  QuizQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: quiz-jobs
+      VisibilityTimeout: 60
+
+  # --- The DynamoDB Table ---
+  # Stores quiz results. jobId is the unique key.
+  # When processor finishes, it writes here.
+  # The front-end polls the get_quiz Lambda which reads from here.
+  QuizTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: quiz-results
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: jobId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: jobId
+          KeyType: HASH
+
+  # --- Lambda 1: Ingest ---
+  # Triggered by API Gateway POST /quiz
+  # Validates input, creates a jobId, sends message to SQS, returns jobId instantly
+  IngestFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/ingest/
+      Handler: app.lambda_handler
+      Policies:
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt QuizQueue.QueueName
+        - DynamoDBWritePolicy:
+            TableName: !Ref QuizTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /quiz
+            Method: post
+
+  # --- Lambda 2: Processor ---
+  # Triggered automatically when a message arrives in SQS
+  # Reads the job, calls OpenAI, writes result to DynamoDB
+  ProcessorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/processor/
+      Handler: app.lambda_handler
+      Timeout: 60
+      Policies:
+        - SQSPollerPolicy:
+            QueueName: !GetAtt QuizQueue.QueueName
+        - DynamoDBWritePolicy:
+            TableName: !Ref QuizTable
+      Events:
+        SQSTrigger:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt QuizQueue.Arn
+            BatchSize: 1
+
+  # --- Lambda 3: Get Quiz ---
+  # Triggered by API Gateway GET /quiz/{jobId}
+  # Front-end calls this every 2 seconds to check if the result is ready
+  GetQuizFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/get_quiz/
+      Handler: app.lambda_handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref QuizTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /quiz/{jobId}
+            Method: get
+
+Outputs:
+  ApiUrl:
+    Description: "API Gateway URL - paste this into frontend/index.html"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod"
