@@ -2,110 +2,93 @@ import json
 import boto3
 import os
 import urllib.request
+import urllib.error
 
 dynamodb = boto3.resource('dynamodb')
+ANTHROPIC_API_KEY = os.environ['ANTHROPIC_API_KEY']
 
-# Read the OpenAI key directly from the environment variable set in template.yaml
-OPENAI_API_KEY = os.environ['OPENAI_API_KEY']
-
-
-def call_openai(prompt):
-    """
-    Call the OpenAI Chat Completions API using only built-in Python libraries.
-    No pip install needed - Lambda supports urllib out of the box.
-    """
+def call_claude(prompt):
     payload = json.dumps({
-        "model": "gpt-3.5-turbo",
-        "messages": [
-            {
-                "role": "system",
-                "content": "You are a quiz generator. Always respond with valid JSON only."
-            },
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ],
-        "temperature": 0.7
+        "model": "claude-haiku-4-5-20251001",
+        "max_tokens": 2048,
+        "messages": [{"role": "user", "content": prompt}]
     }).encode('utf-8')
 
     req = urllib.request.Request(
-        "https://api.openai.com/v1/chat/completions",
+        "https://api.anthropic.com/v1/messages",
         data=payload,
         headers={
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {OPENAI_API_KEY}"
+            "x-api-key": ANTHROPIC_API_KEY,
+            "anthropic-version": "2023-06-01"
         },
         method="POST"
     )
 
-    with urllib.request.urlopen(req, timeout=45) as response:
-        result = json.loads(response.read().decode('utf-8'))
-        return result['choices'][0]['message']['content']
+    try:
+        with urllib.request.urlopen(req, timeout=45) as response:
+            result = json.loads(response.read().decode('utf-8'))
+            raw_text = result['content'][0]['text'].strip()
 
+            # Strip markdown code fences if Claude added them
+            if raw_text.startswith("```"):
+                lines = raw_text.split('\n')
+                # Remove first and last lines (the ``` fences)
+                raw_text = '\n'.join(lines[1:-1]).strip()
+
+            return raw_text
+
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode('utf-8')
+        raise Exception(f"Anthropic API error {e.code}: {error_body}")
 
 def build_prompt(mode, user_input, num_questions, difficulty):
-    """Build the prompt that tells OpenAI exactly what format to return."""
     source = f"the topic: {user_input}" if mode == "topic" else f"this text: {user_input}"
-
     return f"""Generate {num_questions} multiple choice quiz questions based on {source}.
 Difficulty level: {difficulty}.
 
-Respond ONLY with a JSON array in exactly this format, no other text:
+You MUST respond with ONLY a raw JSON array. No introduction. No explanation. No markdown. No code fences. Just the JSON array starting with [ and ending with ].
+
+Example of the exact format required:
 [
   {{
-    "question": "question text here",
-    "options": ["A) option1", "B) option2", "C) option3", "D) option4"],
-    "answer": "A",
-    "explanation": "brief explanation of why A is correct"
+    "question": "What is AWS Lambda?",
+    "options": ["A) A database service", "B) A serverless compute service", "C) A storage service", "D) A networking service"],
+    "answer": "B",
+    "explanation": "AWS Lambda is a serverless compute service that runs code in response to events."
   }}
-]"""
+]
 
+Now generate {num_questions} questions about {source} at {difficulty} difficulty. Reply with the JSON array only."""
 
 def lambda_handler(event, context):
-    """
-    Triggered automatically by SQS when a message arrives.
-    1. Reads the job details from the SQS message
-    2. Calls OpenAI with a structured prompt
-    3. Parses the response into structured question objects
-    4. Updates DynamoDB with status 'done' and the questions
-    """
     table = dynamodb.Table(os.environ['TABLE_NAME'])
 
-    # SQS delivers messages in a 'Records' list (BatchSize=1 so always one item)
     for record in event['Records']:
-        body   = json.loads(record['body'])
+        body = json.loads(record['body'])
         job_id = body['jobId']
 
         try:
-            prompt       = build_prompt(
+            prompt = build_prompt(
                 body['mode'],
                 body['input'],
                 body.get('numQuestions', 5),
                 body.get('difficulty', 'medium')
             )
-            raw_response = call_openai(prompt)
-            questions    = json.loads(raw_response)
+            raw_response = call_claude(prompt)
+            questions = json.loads(raw_response)
 
-            # Write completed result to DynamoDB
             table.update_item(
                 Key={'jobId': job_id},
                 UpdateExpression='SET #s = :s, questions = :q',
-                ExpressionAttributeNames={'#s': 'status'},  # 'status' is reserved in DynamoDB
-                ExpressionAttributeValues={
-                    ':s': 'done',
-                    ':q': questions
-                }
+                ExpressionAttributeNames={'#s': 'status'},
+                ExpressionAttributeValues={':s': 'done', ':q': questions}
             )
 
         except Exception as e:
-            # Mark job as failed so the front-end does not spin forever
             table.update_item(
                 Key={'jobId': job_id},
                 UpdateExpression='SET #s = :s, errorMsg = :e',
                 ExpressionAttributeNames={'#s': 'status'},
-                ExpressionAttributeValues={
-                    ':s': 'failed',
-                    ':e': str(e)
-                }
+                ExpressionAttributeValues={':s': 'failed', ':e': str(e)}
             )
